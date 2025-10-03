@@ -1,0 +1,188 @@
+import { ApiError } from '../exceptions.js/api-errors.js';
+import {
+  compareUserPassword,
+  consumeActivationToken,
+  createUser,
+  findActivatedUser,
+  findByPasswordResetToken,
+  findUserByActiveToken,
+  generateActiveToken,
+  generatePasswordResetToken,
+  resetUserPassword,
+} from '../services/users-service.js';
+import { validateEmail, validatePassword } from '../utils/validators.js';
+import {
+  createAccessToken,
+  creatRefreshToken,
+  verifyRefreshToken,
+} from '../services/jwt-services.js';
+import { tokenService } from '../services/token-service.js';
+import { sendActivationEmail, sendMail } from '../services/new-service.js';
+
+const register = async (req, res, next) => {
+  const { name, email, password } = req.body;
+
+  const emailError = validateEmail(email);
+  const passwordError = validatePassword(password);
+
+  if (emailError || passwordError) {
+    throw ApiError.BadRequest('Bad request', {
+      email: emailError,
+      password: passwordError,
+    });
+  }
+
+  const activationToken = generateActiveToken();
+  const user = await createUser({ name, email, password });
+
+  await sendActivationEmail({ email, activationToken });
+
+  return res.status(201).send({
+    message:
+      'User registered. Please check your email to activate the account.',
+    user: { id: user.id, email: user.email },
+  });
+};
+
+const activate = async (req, res, next) => {
+  const { activationToken } = req.params;
+
+  const user = await findUserByActiveToken(activationToken);
+
+  if (!user) {
+    throw ApiError.NotFound();
+  }
+
+  await consumeActivationToken(user);
+
+  return res.send({
+    message: 'Account activated successfully.',
+    activated: true,
+    user: { id: user.id, email: user.email },
+  });
+};
+
+const sendAuth = async (user, res) => {
+  const accessToken = createAccessToken({ id: user.id, email: user.email });
+  const refreshToken = creatRefreshToken({ id: user.id, email: user.email });
+
+  await tokenService.save(user.id, refreshToken);
+
+  res.cookie('refreshToken', refreshToken, {
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    httpOnly: true,
+    sameSite: 'none',
+    secure: true,
+  });
+
+  return res.send({
+    message: 'Authenticated successfully',
+    accessToken,
+    user: { id: user.id, email: user.email },
+  });
+};
+
+const login = async (req, res, next) => {
+  const { email, password } = req.body;
+  const user = await findActivatedUser(email);
+
+  if (!user) {
+    throw ApiError.NotFound();
+  }
+
+  if (await compareUserPassword(password, user)) {
+    throw ApiError.Unauthorized();
+  }
+
+  return sendAuth(user, res);
+};
+
+const logout = async (req, res, next) => {
+  const { refreshToken } = req.cookies;
+
+  const userData = verifyRefreshToken(refreshToken);
+
+  if (userData) {
+    await tokenService.remove(userData.id);
+  }
+
+  res.clearCookie('refreshToken');
+
+  return res.send({ message: 'Logged out successfully' });
+};
+
+const refresh = async (req, res, next) => {
+  const { refreshToken } = req.cookies;
+
+  const userData = verifyRefreshToken(refreshToken);
+
+  if (userData === null) {
+    throw ApiError.Unauthorized();
+  }
+
+  const token = tokenService.getByToken(refreshToken);
+
+  if (!token) {
+    throw ApiError.Unauthorized();
+  }
+
+  const user = await findActivatedUser(userData.email);
+
+  return sendAuth(user, res);
+};
+
+const requestPasswordReset = async (req, res) => {
+  const { email } = req.body;
+  const user = await findActivatedUser(email);
+
+  if (!user) {
+    throw ApiError.NotFound('User not found');
+  }
+
+  const resetToken = await generatePasswordResetToken(user);
+
+  const link = `${process.env.URL_CLIENT}/reset-password/${resetToken}`;
+
+  await sendMail({
+    to: email,
+    subject: 'Password reset',
+    html: `<p>Click the link to reset password:</p><a href="${link}">${link}</a>`,
+  });
+
+  return res.send({ message: 'Password reset email sent' });
+};
+
+const resetPassword = async (req, res) => {
+  const { token } = req.params;
+  const { password, confirmation } = req.body;
+
+  if (password !== confirmation) {
+    throw ApiError.BadRequest('Passwords do not match');
+  }
+
+  const passwordError = validatePassword(password);
+
+  if (passwordError) {
+    throw ApiError.BadRequest(passwordError);
+  }
+
+  const user = await findByPasswordResetToken(token);
+
+  if (!user) {
+    throw ApiError.BadRequest('Invalid or expired token');
+  }
+
+  await resetUserPassword(user, password);
+
+  return res.send({ message: 'Password reset successful, you can login now' });
+};
+
+export const authController = {
+  register,
+  activate,
+  login,
+  logout,
+  refresh,
+  resetPassword,
+  requestPasswordReset,
+};
