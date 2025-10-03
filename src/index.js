@@ -7,7 +7,7 @@ import { errorMiddleware } from './middlewares.js/error-middleware.js';
 import { authRouter } from './routers/auth-router.js';
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 
 app.use(
   cors({
@@ -18,10 +18,10 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 app.use(authRouter);
-app.use(errorMiddleware);
 
 app.all(/.*/, (req, res) => {
   res.status(404).send({ message: 'Page not found' });
 });
+app.use(errorMiddleware);
 
 app.listen(PORT);

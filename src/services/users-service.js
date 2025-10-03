@@ -10,9 +10,9 @@ export const generateActiveToken = () => {
 };
 
 export const createUser = async ({ email, password, activationToken }) => {
-  const existingUser = User.findOne({ where: { email } });
+  const existingUser = await User.findOne({ where: { email } });
 
-  if (existingUser !== null) {
+  if (existingUser) {
     throw ApiError.BadRequest('User already exist', {
       email: 'Email is used by another user',
     });
@@ -22,16 +22,13 @@ export const createUser = async ({ email, password, activationToken }) => {
 
   return User.create({
     email,
-    hashedPassword,
+    password: hashedPassword,
     activationToken,
   });
 };
 
 export const findUserByActiveToken = (activationToken) => {
-  return User.findOne({
-    where: { activationToken },
-    attributes: ['id', 'email'],
-  });
+  return User.findOne({ where: { activationToken } });
 };
 
 export const consumeActivationToken = async (user) => {
@@ -45,8 +42,8 @@ export const findActivatedUser = async (email) => {
   return User.findOne({ where: { email, activationToken: null } });
 };
 
-export const compareUserPassword = (incomingPassowrd, user) => {
-  return bcrypt.compare(incomingPassowrd, user.password);
+export const compareUserPassword = (incomingPassword, user) => {
+  return bcrypt.compare(incomingPassword, user.password);
 };
 
 export const generatePasswordResetToken = async (user) => {
@@ -69,7 +66,9 @@ export const findByPasswordResetToken = async (token) => {
 };
 
 export const resetUserPassword = async (user, newPassword) => {
-  user.password = newPassword;
+  const hashed = await bcrypt.hash(newPassword, 10);
+
+  user.password = hashed;
   user.resetPasswordToken = null;
   user.resetPasswordExpires = null;
   await user.save();

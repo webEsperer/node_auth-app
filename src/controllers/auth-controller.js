@@ -18,6 +18,7 @@ import {
 } from '../services/jwt-services.js';
 import { tokenService } from '../services/token-service.js';
 import { sendActivationEmail, sendMail } from '../services/new-service.js';
+import { User } from '../models/user.js';
 
 const register = async (req, res, next) => {
   const { name, email, password } = req.body;
@@ -33,7 +34,12 @@ const register = async (req, res, next) => {
   }
 
   const activationToken = generateActiveToken();
-  const user = await createUser({ name, email, password });
+  const user = await createUser({
+    name,
+    email,
+    password,
+    activationToken,
+  });
 
   await sendActivationEmail({ email, activationToken });
 
@@ -55,11 +61,7 @@ const activate = async (req, res, next) => {
 
   await consumeActivationToken(user);
 
-  return res.send({
-    message: 'Account activated successfully.',
-    activated: true,
-    user: { id: user.id, email: user.email },
-  });
+  return res.redirect(`${process.env.URL_CLIENT}/profile`);
 };
 
 const sendAuth = async (user, res) => {
@@ -84,13 +86,17 @@ const sendAuth = async (user, res) => {
 
 const login = async (req, res, next) => {
   const { email, password } = req.body;
-  const user = await findActivatedUser(email);
+  const user = await User.findOne({ where: { email } });
 
   if (!user) {
     throw ApiError.NotFound();
   }
 
-  if (await compareUserPassword(password, user)) {
+  if (user.activationToken) {
+    throw ApiError.BadRequest('Please activate your account before logging in');
+  }
+
+  if (!(await compareUserPassword(password, user))) {
     throw ApiError.Unauthorized();
   }
 
@@ -120,7 +126,7 @@ const refresh = async (req, res, next) => {
     throw ApiError.Unauthorized();
   }
 
-  const token = tokenService.getByToken(refreshToken);
+  const token = await tokenService.getByToken(refreshToken);
 
   if (!token) {
     throw ApiError.Unauthorized();

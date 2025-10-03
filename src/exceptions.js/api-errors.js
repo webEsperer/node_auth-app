@@ -1,8 +1,9 @@
 export class ApiError extends Error {
-  constructor(state, message, error = {}) {
+  constructor(status, message, errors = {}) {
     super(message);
-    this.state = state;
-    this.message = message;
+    this.status = status;
+    this.errors = errors;
+    this.name = this.constructor.name;
   }
 
   static BadRequest(message, errors) {

@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
+  port: parseInt(process.env.SMTP_PORT, 10),
   secure: false,
   auth: {
     user: process.env.SMTP_USER,
@@ -22,13 +22,13 @@ export const sendMail = ({ to, subject, text, html }) => {
 };
 
 export const sendActivationEmail = ({ email, activationToken }) => {
-  const link = `${process.env.URL_CLIENT}/activate/${activationToken}`;
+  const link = `${process.env.URL_CLIENT}/activation/${activationToken}`;
 
   return sendMail({
     to: email,
     subject: 'Account activation',
     text: 'Activate your account',
     html: `<p>Follow the link below to activate your account</p>
-    <a href=${link}>${link}</a>`,
+       <a href="${link}">${link}</a>`,
   });
 };

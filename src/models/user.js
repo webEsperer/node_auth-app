@@ -10,6 +10,7 @@ export const User = sequelize.define('user', {
     type: DataTypes.STRING,
     allowNull: false,
     unique: true,
+    validate: { isEmail: true },
   },
   password: {
     type: DataTypes.STRING,
@@ -17,6 +18,8 @@ export const User = sequelize.define('user', {
   },
   activationToken: {
     type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: null,
   },
   resetPasswordToken: {
     type: DataTypes.STRING,
