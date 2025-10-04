@@ -9,11 +9,14 @@ import {
   generateActiveToken,
   generatePasswordResetToken,
   resetUserPassword,
+  updateUserEmail,
+  updateUserName,
+  updateUserPassword,
 } from '../services/users-service.js';
 import { validateEmail, validatePassword } from '../utils/validators.js';
 import {
   createAccessToken,
-  creatRefreshToken,
+  createRefreshToken,
   verifyRefreshToken,
 } from '../services/jwt-services.js';
 import { tokenService } from '../services/token-service.js';
@@ -22,6 +25,12 @@ import { User } from '../models/user.js';
 
 const register = async (req, res, next) => {
   const { name, email, password } = req.body;
+
+  if (!name) {
+    throw ApiError.BadRequest('Name is required', {
+      name: 'Name cannot be empty',
+    });
+  }
 
   const emailError = validateEmail(email);
   const passwordError = validatePassword(password);
@@ -66,7 +75,7 @@ const activate = async (req, res, next) => {
 
 const sendAuth = async (user, res) => {
   const accessToken = createAccessToken({ id: user.id, email: user.email });
-  const refreshToken = creatRefreshToken({ id: user.id, email: user.email });
+  const refreshToken = createRefreshToken({ id: user.id, email: user.email });
 
   await tokenService.save(user.id, refreshToken);
 
@@ -183,6 +192,50 @@ const resetPassword = async (req, res) => {
   return res.send({ message: 'Password reset successful, you can login now' });
 };
 
+const getProfile = async (req, res) => {
+  const user = req.user;
+
+  return res.send({ id: user.id, name: user.name, email: user.email });
+};
+
+const updateName = async (req, res) => {
+  const { name } = req.body;
+  const user = await updateUserName(req.user, name);
+
+  return res.send({
+    message: 'Name updated',
+    user: { id: user.id, name: user.name },
+  });
+};
+
+const updateEmail = async (req, res) => {
+  const { email } = req.body;
+  const user = await updateUserEmail(req.user, email);
+
+  return res.send({
+    message: 'Email updated',
+    user: { id: user.id, email: user.email },
+  });
+};
+
+const updatePassword = async (req, res) => {
+  const { currentPassword, newPassword, confirmation } = req.body;
+
+  if (newPassword !== confirmation) {
+    throw ApiError.BadRequest('Passwords do not match');
+  }
+
+  const passwordError = validatePassword(newPassword);
+
+  if (passwordError) {
+    throw ApiError.BadRequest(passwordError);
+  }
+
+  await updateUserPassword(req.user, currentPassword, newPassword);
+
+  return res.send({ message: 'Password updated successfully' });
+};
+
 export const authController = {
   register,
   activate,
@@ -191,4 +244,8 @@ export const authController = {
   refresh,
   resetPassword,
   requestPasswordReset,
+  updateEmail,
+  updateName,
+  updatePassword,
+  getProfile,
 };

@@ -15,7 +15,8 @@ authRouter.post(
 );
 
 authRouter.get(
-  '/activate/:activationToken',
+  '/activation/:activationToken',
+  isNotAuthenticated,
   catchError(authController.activate),
 );
 
@@ -39,4 +40,24 @@ authRouter.post(
   '/password-reset/:token',
   isNotAuthenticated,
   catchError(authController.resetPassword),
+);
+
+authRouter.get('/profile', isAuthenticated, catchError(authRouter.getProfile));
+
+authRouter.patch(
+  '/profile/name',
+  isAuthenticated,
+  catchError(authRouter.updateName),
+);
+
+authRouter.patch(
+  '/profile/email',
+  isAuthenticated,
+  catchError(authRouter.updateEmail),
+);
+
+authRouter.patch(
+  '/profile/password',
+  isAuthenticated,
+  catchError(authRouter.updatePassword),
 );

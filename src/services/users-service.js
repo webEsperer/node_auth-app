@@ -9,7 +9,12 @@ export const generateActiveToken = () => {
   return uuid4();
 };
 
-export const createUser = async ({ email, password, activationToken }) => {
+export const createUser = async ({
+  name,
+  email,
+  password,
+  activationToken,
+}) => {
   const existingUser = await User.findOne({ where: { email } });
 
   if (existingUser) {
@@ -21,6 +26,7 @@ export const createUser = async ({ email, password, activationToken }) => {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   return User.create({
+    name,
     email,
     password: hashedPassword,
     activationToken,
@@ -71,6 +77,49 @@ export const resetUserPassword = async (user, newPassword) => {
   user.password = hashed;
   user.resetPasswordToken = null;
   user.resetPasswordExpires = null;
+  await user.save();
+
+  return user;
+};
+
+export const updateUserName = async (user, newName) => {
+  if (!newName) {
+    throw ApiError.BadRequest('Name cannot be empty');
+  }
+
+  user.name = newName;
+  await user.save();
+
+  return user;
+};
+
+export const updateUserEmail = async (user, newEmail) => {
+  const existingUser = await User.findOne({ where: { email: newEmail } });
+
+  if (existingUser) {
+    throw ApiError.BadRequest('Email already in use');
+  }
+
+  user.email = newEmail;
+  await user.save();
+
+  return user;
+};
+
+export const updateUserPassword = async (
+  user,
+  currentPassword,
+  newPassword,
+) => {
+  const match = await compareUserPassword(currentPassword, user);
+
+  if (!match) {
+    throw ApiError.Unauthorized('Current password is incorrect');
+  }
+
+  const hashed = await bcrypt.hash(newPassword, 10);
+
+  user.password = hashed;
   await user.save();
 
   return user;
